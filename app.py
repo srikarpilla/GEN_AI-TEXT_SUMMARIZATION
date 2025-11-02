@@ -2,10 +2,11 @@ import os
 import streamlit as st
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredFileLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chains.summarize import SummarizeChain
+from langchain.text_splitter import CharacterTextSplitter
 from langchain.prompts import PromptTemplate
 from langchain.chains.combine_documents.base import MapReduceDocumentsChain
+
 
 
 def get_document_loader(file_path: str):
@@ -113,3 +114,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
