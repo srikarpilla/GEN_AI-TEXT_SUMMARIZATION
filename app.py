@@ -2,9 +2,9 @@ import os
 import streamlit as st
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredFileLoader
-from langchain.chains.summarize.chain import load_summarize_chain
+from langchain.chains.summarize import load_summarize_chain
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_core.prompts import PromptTemplate
+from langchain.prompts import PromptTemplate
 
 
 def get_document_loader(file_path: str):
@@ -24,7 +24,6 @@ def summarize_document(file_path: str, custom_prompt_text: str) -> str | None:
         return None
 
     try:
-        # Use the gemini-2.5-flash model for better throughput
         llm = ChatGoogleGenerativeAI(
             model="gemini-2.5-flash",
             temperature=0.3,
@@ -41,7 +40,6 @@ def summarize_document(file_path: str, custom_prompt_text: str) -> str | None:
 
         st.sidebar.info(f"Document split into {len(docs_chunks)} chunk(s). Processing...")
 
-        # Define summarization prompts
         map_prompt_template = (
             f"Summarize this part of the document based on these instructions: "
             f"{custom_prompt_text}\n\n{{text}}"
@@ -59,7 +57,7 @@ def summarize_document(file_path: str, custom_prompt_text: str) -> str | None:
             chain_type="map_reduce",
             map_prompt=map_prompt,
             combine_prompt=combine_prompt,
-            verbose=False
+            verbose=False,
         )
 
         result = chain.invoke({"input_documents": docs_chunks})
@@ -71,7 +69,6 @@ def summarize_document(file_path: str, custom_prompt_text: str) -> str | None:
 
 
 def main():
-    """Streamlit Document Summarizer App."""
     st.set_page_config(page_title="AI Document Summarizer", page_icon="📝", layout="wide")
 
     if "summary" not in st.session_state:
