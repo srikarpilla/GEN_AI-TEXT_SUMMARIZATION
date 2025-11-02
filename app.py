@@ -2,10 +2,10 @@ import os
 import streamlit as st
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredFileLoader
-from langchain_community.document_loaders.base import BaseLoader
+# Corrected Import: BaseLoader is now in langchain_core.document_loaders
+from langchain_core.document_loaders import BaseLoader
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.prompts import PromptTemplate
-# Corrected import: We need the concrete implementation from .map_reduce, not the .base abstract class
 from langchain.chains.combine_documents.map_reduce import MapReduceDocumentsChain
 from langchain.chains import LLMChain
 from langchain.docstore.document import Document
@@ -143,3 +143,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
