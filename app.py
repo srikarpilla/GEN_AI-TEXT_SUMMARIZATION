@@ -2,13 +2,13 @@ import os
 import streamlit as st
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredFileLoader
-from langchain.chains.summarize import load_summarize_chain
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.chains.summarize import SummarizeChain
 from langchain.prompts import PromptTemplate
+from langchain.chains.combine_documents.base import MapReduceDocumentsChain
 
 
 def get_document_loader(file_path: str):
-    """Return the appropriate document loader based on file extension."""
     _, extension = os.path.splitext(file_path)
     if extension.lower() == ".pdf":
         return PyPDFLoader(file_path)
@@ -17,7 +17,6 @@ def get_document_loader(file_path: str):
 
 
 def summarize_document(file_path: str, custom_prompt_text: str) -> str | None:
-    """Summarize a document using Gemini 2.5 Flash model via LangChain."""
     api_key = st.secrets.get("GOOGLE_API_KEY")
     if not api_key:
         st.error("GOOGLE_API_KEY not found in Streamlit secrets. Please add your key.")
@@ -32,36 +31,33 @@ def summarize_document(file_path: str, custom_prompt_text: str) -> str | None:
 
         loader = get_document_loader(file_path)
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
-        docs_chunks = loader.load_and_split(text_splitter=text_splitter)
+        docs = loader.load_and_split(text_splitter=text_splitter)
 
-        if not docs_chunks:
+        if not docs:
             st.error("Could not extract text from the document.")
             return None
 
-        st.sidebar.info(f"Document split into {len(docs_chunks)} chunk(s). Processing...")
+        st.sidebar.info(f"Document split into {len(docs)} chunk(s). Processing...")
 
         map_prompt_template = (
-            f"Summarize this part of the document based on these instructions: "
-            f"{custom_prompt_text}\n\n{{text}}"
+            f"Summarize this part of the document based on these instructions: {custom_prompt_text}\n\n{{text}}"
         )
         map_prompt = PromptTemplate.from_template(map_prompt_template)
 
         combine_prompt_template = (
-            f"Combine the following summaries into a final cohesive summary, "
-            f"following these instructions: {custom_prompt_text}\n\n{{text}}"
+            f"Combine the following summaries into a final cohesive summary, following these instructions: {custom_prompt_text}\n\n{{text}}"
         )
         combine_prompt = PromptTemplate.from_template(combine_prompt_template)
 
-        chain = load_summarize_chain(
-            llm=llm,
-            chain_type="map_reduce",
-            map_prompt=map_prompt,
-            combine_prompt=combine_prompt,
-            verbose=False,
-        )
+        # Define SummarizeChains for map and reduce steps
+        map_chain = SummarizeChain(llm=llm, prompt=map_prompt, document_variable_name="text")
+        combine_chain = SummarizeChain(llm=llm, prompt=combine_prompt, document_variable_name="text")
 
-        result = chain.invoke({"input_documents": docs_chunks})
-        return result['output_text']
+        # MapReduceDocumentsChain to process documents in chunks and combine results
+        chain = MapReduceDocumentsChain(map_chain=map_chain, reduce_chain=combine_chain, return_intermediate_steps=False)
+
+        result = chain.run(docs)
+        return result
 
     except Exception as e:
         st.error(f"An error occurred: {e}")
