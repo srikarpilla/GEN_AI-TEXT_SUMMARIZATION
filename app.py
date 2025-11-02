@@ -3,10 +3,11 @@ import streamlit as st
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredFileLoader
 from langchain_core.document_loaders import BaseLoader
-# Corrected Import: CharacterTextSplitter is now in langchain_text_splitters
 from langchain_text_splitters import CharacterTextSplitter
 from langchain.prompts import PromptTemplate
+# Import the specific chain types we need
 from langchain.chains.combine_documents.map_reduce import MapReduceDocumentsChain
+from langchain.chains.combine_documents.stuff import StuffDocumentsChain
 from langchain.chains import LLMChain
 from langchain.docstore.document import Document
 from typing import List, Optional
@@ -32,7 +33,6 @@ def summarize_document(file_path: str, custom_prompt_text: str) -> Optional[str]
         return None
 
     try:
-        # Use the latest recommended Gemini Flash model
         llm = ChatGoogleGenerativeAI(
             model="gemini-2.5-flash-preview-09-2025",
             temperature=0.3,
@@ -40,7 +40,6 @@ def summarize_document(file_path: str, custom_prompt_text: str) -> Optional[str]
         )
 
         loader = get_document_loader(file_path)
-        # Use the correctly imported CharacterTextSplitter
         text_splitter = CharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
         docs: List[Document] = loader.load_and_split(text_splitter=text_splitter)
 
@@ -50,34 +49,41 @@ def summarize_document(file_path: str, custom_prompt_text: str) -> Optional[str]
 
         st.sidebar.info(f"Document split into {len(docs)} chunk(s). Processing...")
 
-        # Define prompts for map and combine
+        # --- THIS IS THE CORRECTED LOGIC ---
+
+        # 1. Define the Map chain (for summarizing each chunk)
         map_prompt_template = PromptTemplate(
             input_variables=["text"],
-            # Use f-string correctly with double braces for langchain variables
             template=f"Summarize this part based on instructions: {custom_prompt_text}\n\n{{text}}"
         )
+        map_chain = LLMChain(llm=llm, prompt=map_prompt_template)
+
+        # 2. Define the Combine chain (for combining the summaries)
         combine_prompt_template = PromptTemplate(
             input_variables=["text"],
             template=f"Combine the following summaries into a final cohesive summary, following these instructions: {custom_prompt_text}\n\n{{text}}"
         )
-
-        # Create LLMChains for map and reduce
-        map_chain = LLMChain(llm=llm, prompt=map_prompt_template)
-        combine_chain = LLMChain(llm=llm, prompt=combine_prompt_template)
-
-        # Use the correctly imported MapReduceDocumentsChain
-        chain = MapReduceDocumentsChain(
-            llm_chain=map_chain,  # Use llm_chain for the map step
-            combine_document_chain=combine_chain,  # Use combine_document_chain for the reduce step
-            combine_document_chain_kwargs={"input_key": "text"}, # Pass the combined map outputs as "text" to the combine_prompt
-            document_variable_name="text", # The variable name for the doc content in map_prompt
+        # The combine step needs its own LLMChain
+        combine_llm_chain = LLMChain(llm=llm, prompt=combine_prompt_template)
+        
+        # We wrap the combine LLMChain in a StuffDocumentsChain
+        combine_chain = StuffDocumentsChain(
+            llm_chain=combine_llm_chain,
+            document_variable_name="text" # Variable name in combine_prompt_template
         )
 
-        # Use the 'invoke' method (preferred over 'run')
-        # The input must be a dictionary with the key 'input_documents'
+        # 3. Create the final MapReduce chain
+        chain = MapReduceDocumentsChain(
+            llm_chain=map_chain,                # The map chain
+            combine_document_chain=combine_chain, # The (correct) combine chain
+            document_variable_name="text",      # Variable name in map_prompt_template
+        )
+        
+        # --- END OF CORRECTION ---
+
+        # Use the 'invoke' method
         result_dict = chain.invoke({"input_documents": docs})
 
-        # The final summary is in the 'output_text' key of the result
         return result_dict.get("output_text")
 
     except Exception as e:
@@ -113,12 +119,10 @@ def main():
 
     if generate_button:
         if uploaded_file and custom_prompt.strip():
-            # Create a temporary directory if it doesn't exist
             temp_dir = "temp_files"
             os.makedirs(temp_dir, exist_ok=True)
             temp_file_path = os.path.join(temp_dir, uploaded_file.name)
 
-            # Save the uploaded file temporarily
             try:
                 with open(temp_file_path, "wb") as f:
                     f.write(uploaded_file.getbuffer())
@@ -130,7 +134,6 @@ def main():
                 st.error(f"Error saving or processing file: {e}")
             
             finally:
-                # Clean up the temporary file
                 if os.path.exists(temp_file_path):
                     os.remove(temp_file_path)
         else:
