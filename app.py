@@ -1,96 +1,82 @@
 import os
 import streamlit as st
+from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredFileLoader
 from langchain.chains.summarize import load_summarize_chain
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.prompts import PromptTemplate
 
-# ----------------------------------------------------------------------
-# 1. API KEY -----------------------------------------------------------
-# ----------------------------------------------------------------------
-def get_google_api_key() -> str | None:
-    """
-    Return the Google API key.
-    • Streamlit Cloud → st.secrets["GOOGLE_API_KEY"]
-    • Local dev      → os.getenv("GOOGLE_API_KEY")
-    """
-    try:
-        return st.secrets["GOOGLE_API_KEY"].strip()
-    except Exception:
-        key = os.getenv("GOOGLE_API_KEY")
-        return key.strip() if key else None
 
-# ----------------------------------------------------------------------
-# 2. Document loader ---------------------------------------------------
-# ----------------------------------------------------------------------
+# Load environment variables
+load_dotenv()
+
+
 def get_document_loader(file_path: str):
-    """Return the appropriate loader based on file extension."""
-    _, ext = os.path.splitext(file_path)
-    ext = ext.lower()
-    if ext == ".pdf":
+    """Return the appropriate document loader based on file extension."""
+    _, extension = os.path.splitext(file_path)
+    if extension.lower() == ".pdf":
         return PyPDFLoader(file_path)
-    return UnstructuredFileLoader(file_path)
+    else:
+        return UnstructuredFileLoader(file_path)
 
-# ----------------------------------------------------------------------
-# 3. Summarisation -----------------------------------------------------
-# ----------------------------------------------------------------------
+
 def summarize_document(file_path: str, custom_prompt_text: str) -> str | None:
-    """Summarize a document using Gemini-1.5-flash via LangChain."""
-    api_key = get_google_api_key()
+    """Summarize a document using Gemini 2.5 Flash model via LangChain."""
+    api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
-        st.error(
-            "🔑 **GOOGLE_API_KEY** not found.\n\n"
-            "• **Streamlit Cloud**: add it in **Settings → Secrets** (use EXACT name).\n"
-            "• **Local**: set it in a `.env` file or export it as the environment variable."
-        )
+        st.error("GOOGLE_API_KEY not found in .env file. Please add your key.")
         return None
 
     try:
+        # Use the gemini-2.5-flash model for better throughput
         llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash",   # latest fast model (as of 2025)
+            model="gemini-2.5-flash",
             temperature=0.3,
             google_api_key=api_key,
         )
 
         loader = get_document_loader(file_path)
-        splitter = RecursiveCharacterTextSplitter(chunk_size=10_000, chunk_overlap=1_000)
-        docs = loader.load_and_split(text_splitter=splitter)
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
+        docs_chunks = loader.load_and_split(text_splitter=text_splitter)
 
-        if not docs:
-            st.error("Could not extract any text from the document.")
+        if not docs_chunks:
+            st.error("Could not extract text from the document.")
             return None
 
-        st.sidebar.info(f"Document split into **{len(docs)}** chunk(s). Processing…")
+        st.sidebar.info(f"Document split into {len(docs_chunks)} chunk(s). Processing...")
 
-        map_prompt = PromptTemplate.from_template(
+        # Define summarization prompts
+        map_prompt_template = (
             f"Summarize this part of the document based on these instructions: "
             f"{custom_prompt_text}\n\n{{text}}"
         )
-        combine_prompt = PromptTemplate.from_template(
+        map_prompt = PromptTemplate.from_template(map_prompt_template)
+
+        combine_prompt_template = (
             f"Combine the following summaries into a final cohesive summary, "
             f"following these instructions: {custom_prompt_text}\n\n{{text}}"
         )
+        combine_prompt = PromptTemplate.from_template(combine_prompt_template)
 
         chain = load_summarize_chain(
             llm=llm,
             chain_type="map_reduce",
             map_prompt=map_prompt,
             combine_prompt=combine_prompt,
-            verbose=False,
+            verbose=False
         )
 
-        result = chain.invoke({"input_documents": docs})
-        return result["output_text"]
+        result = chain.invoke({"input_documents": docs_chunks})
+        return result['output_text']
 
     except Exception as e:
-        st.error(f"⚠️ An error occurred: `{e}`")
+        st.error(f"An error occurred: {e}")
         return None
 
-# ----------------------------------------------------------------------
-# 4. Streamlit UI ------------------------------------------------------
-# ----------------------------------------------------------------------
+
 def main():
+    """Streamlit Document Summarizer App."""
     st.set_page_config(page_title="AI Document Summarizer", page_icon="📝", layout="wide")
 
     if "summary" not in st.session_state:
@@ -98,53 +84,44 @@ def main():
 
     with st.sidebar:
         st.header("📝 AI Document Summarizer")
-        st.markdown(
-            "Upload a **PDF**, **TXT**, or **MD** file and give a prompt to generate a summary."
-        )
+        st.markdown("Upload a `.pdf`, `.txt`, or `.md` file and provide a prompt to generate a summary.")
 
-        uploaded_file = st.file_uploader(
-            "Choose a file", type=["pdf", "txt", "md"], label_visibility="collapsed"
-        )
-        custom_prompt = st.text_area(
-            "Custom prompt",
-            height=150,
-            placeholder="e.g. Summarize key findings, list main arguments, keep bullet points…",
-        )
+        uploaded_file = st.file_uploader("Upload your document", type=["pdf", "txt", "md"])
+        custom_prompt = st.text_area("Enter your custom prompt", height=150,
+                                     placeholder="Example: Summarize key findings...")
 
         col1, col2 = st.columns(2)
         with col1:
-            generate_btn = st.button("Generate Summary", type="primary", use_container_width=True)
+            generate_button = st.button("Generate Summary", type="primary", use_container_width=True)
         with col2:
-            clear_btn = st.button("Clear", use_container_width=True)
+            clear_button = st.button("Clear", use_container_width=True)
 
     st.title("Generated Summary")
 
-    if clear_btn:
+    if clear_button:
         st.session_state.summary = ""
 
-    if generate_btn:
-        if not uploaded_file:
-            st.warning("Please **upload a document**.")
-        elif not custom_prompt.strip():
-            st.warning("Please **enter a summarisation prompt**.")
-        else:
-            # Save uploaded file temporarily
+    if generate_button:
+        if uploaded_file and custom_prompt.strip():
             temp_dir = "temp_files"
             os.makedirs(temp_dir, exist_ok=True)
-            temp_path = os.path.join(temp_dir, uploaded_file.name)
+            temp_file_path = os.path.join(temp_dir, uploaded_file.name)
 
-            with open(temp_path, "wb") as f:
+            with open(temp_file_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
 
-            with st.spinner("Gemini is reading the document…"):
-                st.session_state.summary = summarize_document(temp_path, custom_prompt.strip())
+            with st.spinner("🧠 Gemini is analyzing the document..."):
+                st.session_state.summary = summarize_document(temp_file_path, custom_prompt)
 
-            os.remove(temp_path)
+            os.remove(temp_file_path)
+        else:
+            st.warning("Please upload a document and provide a summarization prompt.")
 
     if st.session_state.summary:
-        st.text_area("Summary", value=st.session_state.summary, height=400, disabled=True)
+        st.text_area("Summary", value=st.session_state.summary, height=400)
     else:
-        st.info("Upload a file, write a prompt, and click **Generate Summary** to start.")
+        st.info("Upload a document and enter a prompt to get started.")
+
 
 if __name__ == "__main__":
     main()
