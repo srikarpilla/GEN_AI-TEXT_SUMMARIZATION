@@ -4,7 +4,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredFileLoader
 from langchain_core.document_loaders import BaseLoader
 from langchain_text_splitters import CharacterTextSplitter
-from langchain.prompts import PromptTemplate
+# Corrected Import: PromptTemplate is now in langchain_core.prompts
+from langchain_core.prompts import PromptTemplate
 # Import the specific chain types we need
 from langchain.chains.combine_documents.map_reduce import MapReduceDocumentsChain
 from langchain.chains.combine_documents.stuff import StuffDocumentsChain
@@ -49,8 +50,6 @@ def summarize_document(file_path: str, custom_prompt_text: str) -> Optional[str]
 
         st.sidebar.info(f"Document split into {len(docs)} chunk(s). Processing...")
 
-        # --- THIS IS THE CORRECTED LOGIC ---
-
         # 1. Define the Map chain (for summarizing each chunk)
         map_prompt_template = PromptTemplate(
             input_variables=["text"],
@@ -75,12 +74,10 @@ def summarize_document(file_path: str, custom_prompt_text: str) -> Optional[str]
         # 3. Create the final MapReduce chain
         chain = MapReduceDocumentsChain(
             llm_chain=map_chain,                # The map chain
-            combine_document_chain=combine_chain, # The (correct) combine chain
+            combine_document_chain=combine_chain, # The combine chain
             document_variable_name="text",      # Variable name in map_prompt_template
         )
         
-        # --- END OF CORRECTION ---
-
         # Use the 'invoke' method
         result_dict = chain.invoke({"input_documents": docs})
 
