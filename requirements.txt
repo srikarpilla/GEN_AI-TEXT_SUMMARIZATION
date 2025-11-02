@@ -3,5 +3,5 @@ langchain
 langchain-core
 langchain-community
 langchain-google-genai
+langchain-text-splitters
 pypdf
-unstructured
