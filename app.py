@@ -2,12 +2,10 @@ import os
 import streamlit as st
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredFileLoader
-from langchain.chains.summarize import SummarizeChain
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.prompts import PromptTemplate
 from langchain.chains.combine_documents.base import MapReduceDocumentsChain
-
-
+from langchain.chains import LLMChain
 
 
 def get_document_loader(file_path: str):
@@ -32,7 +30,7 @@ def summarize_document(file_path: str, custom_prompt_text: str) -> str | None:
         )
 
         loader = get_document_loader(file_path)
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
+        text_splitter = CharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
         docs = loader.load_and_split(text_splitter=text_splitter)
 
         if not docs:
@@ -41,24 +39,26 @@ def summarize_document(file_path: str, custom_prompt_text: str) -> str | None:
 
         st.sidebar.info(f"Document split into {len(docs)} chunk(s). Processing...")
 
-        map_prompt_template = (
-            f"Summarize this part of the document based on these instructions: {custom_prompt_text}\n\n{{text}}"
+        # Define prompts for map and combine
+        map_prompt_template = PromptTemplate(
+            input_variables=["text"],
+            template=f"Summarize this part based on instructions: {custom_prompt_text}\n\n{{text}}"
         )
-        map_prompt = PromptTemplate.from_template(map_prompt_template)
-
-        combine_prompt_template = (
-            f"Combine the following summaries into a final cohesive summary, following these instructions: {custom_prompt_text}\n\n{{text}}"
+        combine_prompt_template = PromptTemplate(
+            input_variables=["text"],
+            template=f"Combine the following summaries into a final cohesive summary, following these instructions: {custom_prompt_text}\n\n{{text}}"
         )
-        combine_prompt = PromptTemplate.from_template(combine_prompt_template)
 
-        # Define SummarizeChains for map and reduce steps
-        map_chain = SummarizeChain(llm=llm, prompt=map_prompt, document_variable_name="text")
-        combine_chain = SummarizeChain(llm=llm, prompt=combine_prompt, document_variable_name="text")
+        # Create LLMChains for map and reduce
+        map_chain = LLMChain(llm=llm, prompt=map_prompt_template)
+        combine_chain = LLMChain(llm=llm, prompt=combine_prompt_template)
 
-        # MapReduceDocumentsChain to process documents in chunks and combine results
-        chain = MapReduceDocumentsChain(map_chain=map_chain, reduce_chain=combine_chain, return_intermediate_steps=False)
+        # Use MapReduceDocumentsChain for the whole summarization flow
+        chain = MapReduceDocumentsChain(map_chain=map_chain, reduce_chain=combine_chain)
 
+        # Run the chain
         result = chain.run(docs)
+
         return result
 
     except Exception as e:
@@ -115,5 +115,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
