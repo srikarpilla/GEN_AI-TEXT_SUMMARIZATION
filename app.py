@@ -9,6 +9,7 @@ from langchain.chains.combine_documents.base import MapReduceDocumentsChain
 
 
 
+
 def get_document_loader(file_path: str):
     _, extension = os.path.splitext(file_path)
     if extension.lower() == ".pdf":
@@ -114,4 +115,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
