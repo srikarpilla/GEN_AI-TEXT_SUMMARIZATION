@@ -6,9 +6,8 @@ from langchain.chains.summarize import load_summarize_chain
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.prompts import PromptTemplate
 
-
 # ----------------------------------------------------------------------
-# 1. API KEY ------------------------------------------------------------
+# 1. API KEY -----------------------------------------------------------
 # ----------------------------------------------------------------------
 def get_google_api_key() -> str | None:
     """
@@ -16,12 +15,14 @@ def get_google_api_key() -> str | None:
     • Streamlit Cloud → st.secrets["GOOGLE_API_KEY"]
     • Local dev      → os.getenv("GOOGLE_API_KEY")
     """
-    key = st.secrets.get("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY")
-    return key.strip() if key else None
-
+    try:
+        return st.secrets["GOOGLE_API_KEY"].strip()
+    except Exception:
+        key = os.getenv("GOOGLE_API_KEY")
+        return key.strip() if key else None
 
 # ----------------------------------------------------------------------
-# 2. Document loader ----------------------------------------------------
+# 2. Document loader ---------------------------------------------------
 # ----------------------------------------------------------------------
 def get_document_loader(file_path: str):
     """Return the appropriate loader based on file extension."""
@@ -31,9 +32,8 @@ def get_document_loader(file_path: str):
         return PyPDFLoader(file_path)
     return UnstructuredFileLoader(file_path)
 
-
 # ----------------------------------------------------------------------
-# 3. Summarisation ------------------------------------------------------
+# 3. Summarisation -----------------------------------------------------
 # ----------------------------------------------------------------------
 def summarize_document(file_path: str, custom_prompt_text: str) -> str | None:
     """Summarize a document using Gemini-1.5-flash via LangChain."""
@@ -41,8 +41,8 @@ def summarize_document(file_path: str, custom_prompt_text: str) -> str | None:
     if not api_key:
         st.error(
             "🔑 **GOOGLE_API_KEY** not found.\n\n"
-            "• **Streamlit Cloud**: add it in **Settings → Secrets**.\n"
-            "• **Local**: set it in a `.env` file or export it."
+            "• **Streamlit Cloud**: add it in **Settings → Secrets** (use EXACT name).\n"
+            "• **Local**: set it in a `.env` file or export it as the environment variable."
         )
         return None
 
@@ -63,7 +63,6 @@ def summarize_document(file_path: str, custom_prompt_text: str) -> str | None:
 
         st.sidebar.info(f"Document split into **{len(docs)}** chunk(s). Processing…")
 
-        # ---- map / combine prompts ----------------------------------------
         map_prompt = PromptTemplate.from_template(
             f"Summarize this part of the document based on these instructions: "
             f"{custom_prompt_text}\n\n{{text}}"
@@ -88,18 +87,15 @@ def summarize_document(file_path: str, custom_prompt_text: str) -> str | None:
         st.error(f"⚠️ An error occurred: `{e}`")
         return None
 
-
 # ----------------------------------------------------------------------
-# 4. Streamlit UI -------------------------------------------------------
+# 4. Streamlit UI ------------------------------------------------------
 # ----------------------------------------------------------------------
 def main():
     st.set_page_config(page_title="AI Document Summarizer", page_icon="📝", layout="wide")
 
-    # initialise session state
     if "summary" not in st.session_state:
         st.session_state.summary = ""
 
-    # ---------- Sidebar ----------
     with st.sidebar:
         st.header("📝 AI Document Summarizer")
         st.markdown(
@@ -121,7 +117,6 @@ def main():
         with col2:
             clear_btn = st.button("Clear", use_container_width=True)
 
-    # ---------- Main area ----------
     st.title("Generated Summary")
 
     if clear_btn:
@@ -146,12 +141,10 @@ def main():
 
             os.remove(temp_path)
 
-    # ---------- Show result ----------
     if st.session_state.summary:
         st.text_area("Summary", value=st.session_state.summary, height=400, disabled=True)
     else:
         st.info("Upload a file, write a prompt, and click **Generate Summary** to start.")
-
 
 if __name__ == "__main__":
     main()
