@@ -4,11 +4,11 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredFileLoader
 from langchain_core.document_loaders import BaseLoader
 from langchain_text_splitters import CharacterTextSplitter
-# Corrected Import: PromptTemplate is now in langchain_core.prompts
 from langchain_core.prompts import PromptTemplate
 # Import the specific chain types we need
-from langchain.chains.combine_documents.map_reduce import MapReduceDocumentsChain
-from langchain.chains.combine_documents.stuff import StuffDocumentsChain
+# Corrected Imports: Removed .map_reduce and .stuff from the path
+from langchain.chains.combine_documents import MapReduceDocumentsChain
+from langchain.chains.combine_documents import StuffDocumentsChain
 from langchain.chains import LLMChain
 from langchain.docstore.document import Document
 from typing import List, Optional
