@@ -2,9 +2,9 @@ import os
 import streamlit as st
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredFileLoader
-# Corrected Import: BaseLoader is now in langchain_core.document_loaders
 from langchain_core.document_loaders import BaseLoader
-from langchain.text_splitter import CharacterTextSplitter
+# Corrected Import: CharacterTextSplitter is now in langchain_text_splitters
+from langchain_text_splitters import CharacterTextSplitter
 from langchain.prompts import PromptTemplate
 from langchain.chains.combine_documents.map_reduce import MapReduceDocumentsChain
 from langchain.chains import LLMChain
@@ -40,6 +40,7 @@ def summarize_document(file_path: str, custom_prompt_text: str) -> Optional[str]
         )
 
         loader = get_document_loader(file_path)
+        # Use the correctly imported CharacterTextSplitter
         text_splitter = CharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
         docs: List[Document] = loader.load_and_split(text_splitter=text_splitter)
 
