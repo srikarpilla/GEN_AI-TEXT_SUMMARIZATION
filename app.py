@@ -1,15 +1,10 @@
 import os
 import streamlit as st
-from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredFileLoader
-from langchain.chains.summarize import load_summarize_chain
+from langchain.chains.summarize.chain import load_summarize_chain
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.prompts import PromptTemplate
-
-
-# Load environment variables
-load_dotenv()
 
 
 def get_document_loader(file_path: str):
@@ -23,9 +18,9 @@ def get_document_loader(file_path: str):
 
 def summarize_document(file_path: str, custom_prompt_text: str) -> str | None:
     """Summarize a document using Gemini 2.5 Flash model via LangChain."""
-    api_key = os.getenv("GOOGLE_API_KEY")
+    api_key = st.secrets.get("GOOGLE_API_KEY")
     if not api_key:
-        st.error("GOOGLE_API_KEY not found in .env file. Please add your key.")
+        st.error("GOOGLE_API_KEY not found in Streamlit secrets. Please add your key.")
         return None
 
     try:
@@ -88,7 +83,7 @@ def main():
 
         uploaded_file = st.file_uploader("Upload your document", type=["pdf", "txt", "md"])
         custom_prompt = st.text_area("Enter your custom prompt", height=150,
-                                     placeholder="Example: Summarize key findings...")
+                                    placeholder="Example: Summarize key findings...")
 
         col1, col2 = st.columns(2)
         with col1:
