@@ -5,13 +5,15 @@ from langchain_community.document_loaders import PyPDFLoader, UnstructuredFileLo
 from langchain_core.document_loaders import BaseLoader
 from langchain_text_splitters import CharacterTextSplitter
 from langchain_core.prompts import PromptTemplate
-# Import the specific chain types we need
-# Corrected Imports: Removed .map_reduce and .stuff from the path
-from langchain.chains.combine_documents import MapReduceDocumentsChain
-from langchain.chains.combine_documents import StuffDocumentsChain
-from langchain.chains import LLMChain
-from langchain.docstore.document import Document
+from langchain_core.documents import Document # Moved Document import to core
 from typing import List, Optional
+
+# --- Corrected Chain Imports ---
+# Import combine document chains directly from their module
+from langchain.chains.combine_documents import MapReduceDocumentsChain, StuffDocumentsChain
+# Import the base LLMChain from its specific module
+from langchain.chains.llm import LLMChain
+# --- End of Corrected Chain Imports ---
 
 
 def get_document_loader(file_path: str) -> BaseLoader:
@@ -144,4 +146,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
